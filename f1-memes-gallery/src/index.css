@@ -1,9 +1,11 @@
-@import "tailwindcss";
-
 @import url("https://fonts.googleapis.com/css2?family=Indie+Flower&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300..700&display=swap");
+
+@import "tailwindcss";
 
 :root {
   --font-indie: "Indie Flower", cursive;
+  --font-quicksand: "Quicksand", sans-serif;
 }
 
 body {
