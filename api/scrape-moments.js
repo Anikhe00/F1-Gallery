@@ -1,7 +1,5 @@
 /* global process, console */
-import {GoogleGenerativeAI} from '@google/generative-ai'
 import {createClient} from '@sanity/client'
-import {v4 as uuidv4} from 'uuid'
 
 const sanity = createClient({
   projectId: process.env.SANITY_PROJECT_ID,
@@ -10,8 +8,6 @@ const sanity = createClient({
   useCdn: false,
   apiVersion: '2024-03-19',
 })
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 export default async function handler(req, res) {
   if (req.method !== 'POST' && req.headers['user-agent'] !== 'vercel-cron/1.0') {
@@ -25,42 +21,49 @@ export default async function handler(req, res) {
     const today = new Date()
     const raceDate = today.toISOString().split('T')[0]
 
-    // ✅ No googleSearch tool — compatible with JSON mode
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      generationConfig: {
-        responseMimeType: 'application/json',
-      },
-    })
-
-    const prompt = `You are an F1 expert. Generate a JSON array of 8-10 notable or iconic F1 moments 
+    const prompt = `You are an F1 expert. Generate a JSON array of 8-10 notable or iconic F1 moments
 for these drivers: ${drivers.map((d) => d.name).join(', ')}.
 Focus on memorable race incidents, radio moments, celebrations, or controversies.
 Context: approximate date ${raceDate}.
-Return ONLY a valid JSON array, no markdown. Schema:
+Return ONLY a valid JSON array, no markdown, no backticks, no explanation. Schema:
 [{
-  "driverName": "string (must match one of the drivers above)",
+  "driverName": "string (must match one of the drivers listed above)",
   "title": "string (short, descriptive)",
   "description": "string (2-3 sentences about the moment)",
   "radio": "string or null (famous radio quote if applicable)",
   "type": "string (one of: image, video, radio)"
 }]`
 
-    const result = await model.generateContent({
-      contents: [{role: 'user', parts: [{text: prompt}]}],
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1000,
+        messages: [{role: 'user', content: prompt}],
+      }),
     })
 
-    // ✅ Safe text extraction
-    const parts = result.response.candidates?.[0]?.content?.parts ?? []
-    const rawText = parts
-      .filter((p) => p.text)
-      .map((p) => p.text)
-      .join('')
+    if (!response.ok) {
+      const err = await response.json()
+      throw new Error(`Claude API error: ${err.error?.message ?? response.statusText}`)
+    }
 
-    if (!rawText) throw new Error('Empty response from Gemini')
+    const data = await response.json()
+    const rawText = data.content[0].text.trim()
 
-    const moments = JSON.parse(rawText)
-    console.log(`✨ Gemini returned ${moments.length} moments`)
+    // Strip markdown fences if Claude adds them despite instructions
+    const cleaned = rawText
+      .replace(/^```json\n?/, '')
+      .replace(/\n?```$/, '')
+      .trim()
+    const moments = JSON.parse(cleaned)
+
+    console.log(`✨ Claude returned ${moments.length} moments`)
 
     const createdMoments = []
 
@@ -70,6 +73,7 @@ Return ONLY a valid JSON array, no markdown. Schema:
           d.name.toLowerCase().includes(moment.driverName.toLowerCase()) ||
           moment.driverName.toLowerCase().includes(d.name.toLowerCase()),
       )
+
       if (!driver) {
         console.warn(`⚠️ No driver match for: ${moment.driverName}`)
         continue
@@ -89,13 +93,12 @@ Return ONLY a valid JSON array, no markdown. Schema:
         radio: moment.radio || null,
       })
 
-      // ✅ _key is required for Sanity array references
       await sanity
         .patch(driver._id)
         .setIfMissing({moments: []})
         .append('moments', [
           {
-            _key: uuidv4(),
+            _key: crypto.randomUUID(),
             _type: 'reference',
             _ref: newMoment._id,
           },
