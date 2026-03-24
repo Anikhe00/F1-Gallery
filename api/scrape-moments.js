@@ -40,7 +40,7 @@ export default async function handler(req, res) {
 
     // Step 3: Use Gemini with Google Search to find F1 moments
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp', // Free tier model
+      model: 'gemini-2.0-flash', // Free tier model
       tools: [
         {
           googleSearch: {}, // Enable Google Search grounding (FREE!)
