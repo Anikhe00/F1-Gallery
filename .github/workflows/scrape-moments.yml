@@ -1,0 +1,16 @@
+name: Scrape F1 Moments
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Every Monday 9am UTC
+  workflow_dispatch: # Manual trigger button in GitHub UI
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scraper
+        run: |
+          curl -X POST https://f1gallery.vercel.app/api/scrape-moments \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

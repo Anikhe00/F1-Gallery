@@ -17,7 +17,7 @@ const DriversCard = ({img, name, number, teamColor, className}) => {
       </div>
       <div className="flex flex-row justify-between items-center">
         <p className="text-base lg:text-xl font-medium">{name}</p>
-        <p className="text-sm lg:text-lg">#{number}</p>
+        <p className="text-sm lg:text-lg">{number}</p>
       </div>
     </div>
   )
