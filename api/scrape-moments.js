@@ -74,6 +74,9 @@ export default async function handler(req, res) {
 for these drivers: ${drivers.map((d) => d.name).join(', ')}.
 Focus on memorable race incidents, radio moments, celebrations, or controversies.
 Context: approximate date ${raceDate}.
+
+IMPORTANT: Every object MUST include the imageQuery field. Do not omit it.
+
 Return ONLY a valid JSON array, no markdown, no backticks, no explanation. Schema:
 [{
   "driverName": "string (must match one of the drivers listed above)",
@@ -81,7 +84,7 @@ Return ONLY a valid JSON array, no markdown, no backticks, no explanation. Schem
   "description": "string (2-3 sentences about the moment)",
   "radio": "string or null (famous radio quote if applicable)",
   "type": "string (one of: image, video)",
-    "imageQuery": "string (specific Google image search query to find a photo of this moment, e.g. 'Max Verstappen Abu Dhabi 2021 celebration podium')"
+    "imageQuery": "string (REQUIRED - specific Google image search query to find a photo of this moment, e.g. 'Max Verstappen Abu Dhabi 2021 celebration podium')"
 
 }]`
 
@@ -99,6 +102,7 @@ Return ONLY a valid JSON array, no markdown, no backticks, no explanation. Schem
 
     const moments = JSON.parse(rawText)
     console.log(`✨ Gemini returned ${moments.length} moments`)
+    console.log(`🔎 Sample imageQuery: ${moments[0]?.imageQuery}`) // ← add this
 
     const createdMoments = []
 
