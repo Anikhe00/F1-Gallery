@@ -11,6 +11,7 @@ jobs:
     steps:
       - name: Trigger scraper
         run: |
-          curl -X POST https://f1gallery.vercel.app/api/scrape-moments \
+          RESPONSE=$(curl -X POST https://f1gallery.vercel.app/api/scrape-moments \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          echo "Response: $RESPONSE"
