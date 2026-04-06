@@ -7,40 +7,82 @@ export default {
       name: 'name',
       title: 'Driver Name',
       type: 'string',
-      validation: Rule => Rule.required()
+      validation: (Rule) => Rule.required(),
     },
     {
       name: 'number',
       title: 'Driver Number',
       type: 'string',
-      validation: Rule => Rule.required()
+      validation: (Rule) => Rule.required(),
     },
     {
       name: 'team',
       title: 'Team',
       type: 'string',
-      validation: Rule => Rule.required()
+      validation: (Rule) => Rule.required(),
     },
     {
       name: 'teamColor',
       title: 'Team Color',
       type: 'string',
       description: 'Hex color code (e.g., #DC0000)',
-      validation: Rule => Rule.required()
+      validation: (Rule) => Rule.required(),
     },
     {
       name: 'image',
       title: 'Driver Image',
       type: 'image',
       options: {
-        hotspot: true
-      }
+        hotspot: true,
+      },
+    },
+    {
+      name: 'grandPrixEntered',
+      title: 'Grand Prix Entered',
+      type: 'number',
+      description: 'Total number of races entered',
+    },
+    {
+      name: 'wins',
+      title: 'Wins',
+      type: 'number',
+      description: 'Total race wins',
+    },
+    {
+      name: 'podiums',
+      title: 'Podiums',
+      type: 'number',
+      description: 'Total podium finishes',
+    },
+    {
+      name: 'championships',
+      title: 'Championships',
+      type: 'number',
+      description: 'World championships won',
+    },
+    {
+      name: 'polePositions',
+      title: 'Pole Positions',
+      type: 'number',
+      description: 'Total pole positions',
+    },
+    {
+      name: 'nationality',
+      title: 'Nationality',
+      type: 'string',
+      description: 'Driver nationality',
+    },
+    {
+      name: 'dateOfBirth',
+      title: 'Date of Birth',
+      type: 'date',
+      description: 'When was the driver born',
     },
     {
       name: 'moments',
       title: 'Moments',
       type: 'array',
-      of: [{ type: 'reference', to: [{ type: 'moment' }] }]
-    }
-  ]
+      of: [{type: 'reference', to: [{type: 'moment'}]}],
+    },
+  ],
 }
