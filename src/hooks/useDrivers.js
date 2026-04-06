@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
-import { client } from "../library/sanity";
+import {useState, useEffect} from 'react'
+import {client} from '../library/sanity'
 
 export function useDrivers() {
-  const [drivers, setDrivers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [drivers, setDrivers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     // GROQ query to fetch all drivers with their moments
@@ -15,6 +15,13 @@ export function useDrivers() {
       team,
       teamColor,
       "image": image.asset->url,
+      grandPrixEntered,
+      wins,
+      podiums,
+      championships,
+      polePositions,
+      nationality,
+      dateOfBirth,
       "moments": moments[]-> {
         _id,
         title,
@@ -25,7 +32,7 @@ export function useDrivers() {
         videoUrl,
         radio
       }
-    }`;
+    }`
 
     client
       .fetch(query)
@@ -38,15 +45,22 @@ export function useDrivers() {
           team: driver.team,
           teamColor: driver.teamColor,
           image: driver.image,
+          grandPrixEntered: driver.grandPrixEntered || 0,
+          wins: driver.wins || 0,
+          podiums: driver.podiums || 0,
+          championships: driver.championships || 0,
+          polePositions: driver.polePositions || 0,
+          nationality: driver.nationality || '',
+          dateOfBirth: driver.dateOfBirth || '',
           moments: driver.moments
             ? driver.moments.map((moment) => ({
                 id: moment._id,
                 type: moment.type,
                 title: moment.title,
-                date: new Date(moment.date).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
+                date: new Date(moment.date).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
                 }),
                 description: moment.description,
                 imageUrl: moment.imageUrl,
@@ -54,17 +68,17 @@ export function useDrivers() {
                 radio: moment.radio,
               }))
             : [],
-        }));
+        }))
 
-        setDrivers(transformedData);
-        setLoading(false);
+        setDrivers(transformedData)
+        setLoading(false)
       })
       .catch((err) => {
-        console.error("Error fetching drivers:", err);
-        setError(err);
-        setLoading(false);
-      });
-  }, []);
+        console.error('Error fetching drivers:', err)
+        setError(err)
+        setLoading(false)
+      })
+  }, [])
 
-  return { drivers, loading, error };
+  return {drivers, loading, error}
 }
