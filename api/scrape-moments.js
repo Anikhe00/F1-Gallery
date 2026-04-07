@@ -12,6 +12,70 @@ const sanity = createClient({
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
+// Fetch driver stats from Ergast F1 API
+async function fetchDriverStats(driverLastName) {
+  try {
+    // Ergast API - get driver career stats
+    const response = await fetch(
+      `https://ergast.com/api/f1/drivers/${driverLastName.toLowerCase()}.json`,
+    )
+
+    if (!response.ok) return null
+
+    const data = await response.json()
+    const driver = data.MRData?.DriverTable?.Drivers?.[0]
+
+    if (!driver) return null
+
+    // Get driver's race results to calculate stats
+    const resultsResponse = await fetch(
+      `https://ergast.com/api/f1/drivers/${driverLastName.toLowerCase()}/results.json?limit=1000`,
+    )
+
+    const resultsData = await resultsResponse.json()
+    const races = resultsData.MRData?.RaceTable?.Races || []
+
+    // Calculate stats from race results
+    const wins = races.filter((r) => r.Results?.[0]?.position === '1').length
+    const podiums = races.filter((r) => {
+      const position = parseInt(r.Results?.[0]?.position)
+      return position >= 1 && position <= 3
+    }).length
+
+    return {
+      nationality: driver.nationality,
+      dateOfBirth: driver.dateOfBirth,
+      grandPrixEntered: races.length,
+      wins: wins,
+      podiums: podiums,
+    }
+  } catch (error) {
+    console.error(`Error fetching stats for ${driverLastName}:`, error)
+    return null
+  }
+}
+
+// Fetch current season standings for championships and points
+async function fetchCurrentSeasonStats() {
+  try {
+    const response = await fetch('https://ergast.com/api/f1/current/driverStandings.json')
+
+    const data = await response.json()
+    const standings = data.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings || []
+
+    return standings.map((standing) => ({
+      driverId: standing.Driver.driverId,
+      position: parseInt(standing.position),
+      points: parseFloat(standing.points),
+      wins: parseInt(standing.wins),
+      championships: standing.Driver.championships || 0, // Note: This isn't in Ergast, would need manual entry
+    }))
+  } catch (error) {
+    console.error('Error fetching season standings:', error)
+    return []
+  }
+}
+
 // Fetch image URL from Google Custom Search
 async function findImageUrl(query) {
   try {
@@ -57,11 +121,64 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log('🏁 Starting F1 moment scraper...')
+    console.log('🏁 Starting F1 automation...')
 
-    const drivers = await sanity.fetch(`*[_type == "driver"] { _id, name }`)
+    // PART 1: UPDATE DRIVER STATS
+    console.log('\n📊 Updating driver stats from F1 API...')
+
+    const drivers = await sanity.fetch(`*[_type == "driver"] {
+      _id,
+      name,
+      number,
+      team
+    }`)
+
+    const updatedDrivers = []
+    const currentSeasonStats = await fetchCurrentSeasonStats()
+
+    for (const driver of drivers) {
+      try {
+        const lastName = driver.name.split(' ').pop()
+        const stats = await fetchDriverStats(lastName)
+
+        if (stats) {
+          // Find current season stats
+          const seasonStats = currentSeasonStats.find((s) => s.driverId === lastName.toLowerCase())
+
+          // Update driver in Sanity
+          await sanity
+            .patch(driver._id)
+            .set({
+              nationality: stats.nationality,
+              dateOfBirth: stats.dateOfBirth,
+              grandPrixEntered: stats.grandPrixEntered,
+              wins: seasonStats?.wins || stats.wins,
+              podiums: stats.podiums,
+            })
+            .commit()
+
+          console.log(`✅ Updated stats for ${driver.name}`)
+          updatedDrivers.push(driver.name)
+
+          // Rate limit: wait 500ms between API calls
+          await new Promise((resolve) => setTimeout(resolve, 500))
+        } else {
+          console.log(`⚠️ No stats found for ${driver.name}`)
+        }
+      } catch (error) {
+        console.error(`Error updating ${driver.name}:`, error)
+      }
+    }
+
+    // PART 2: CREATE RACE MOMENTS
+    console.log('\n🏎️ Creating race moments...')
+
     const today = new Date()
-    const raceDate = today.toISOString().split('T')[0]
+    const lastSunday = new Date(today)
+    lastSunday.setDate(today.getDate() - ((today.getDay() + 7) % 7))
+    const raceDate = lastSunday.toISOString().split('T')[0]
+
+    console.log(`Looking for moments from: ${raceDate}`)
 
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash-lite',
@@ -72,8 +189,15 @@ export default async function handler(req, res) {
 
     const prompt = `You are an F1 expert. Generate a JSON array of 8-10 notable or iconic F1 moments
 for these drivers: ${drivers.map((d) => d.name).join(', ')}.
-Focus on memorable race incidents, radio moments, celebrations, or controversies.
+Focus on memorable race wins and podium finishes, dramatic overtake, race incidents, pole positions, radio messages that went viral, post-race celebrations, controversies or penalties, driver reactions and emotions, social media moments, and paddock drama.
 Context: approximate date ${raceDate}.
+
+For each moment, identify:
+1. Which driver (from: ${drivers.map((d) => d.name).join(', ')})
+2. A catchy title (max 50 chars)
+3. Brief description (2-3 sentences, exciting tone!)
+4. Team radio quote if available
+5. Type of moment (image, video)
 
 IMPORTANT: Every object MUST include the imageQuery field. Do not omit it.
 
