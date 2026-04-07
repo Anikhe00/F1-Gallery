@@ -79,6 +79,24 @@ export default {
       description: 'When was the driver born',
     },
     {
+      name: 'currentSeasonPoints',
+      title: 'Current Season Points',
+      type: 'number',
+      description: 'Points accumulated this season',
+    },
+    {
+      name: 'currentSeasonPosition',
+      title: 'Current Season Position',
+      type: 'number',
+      description: 'Total position in the current season, out of 22',
+    },
+    {
+      name: 'currentSeasonWins',
+      title: 'Current Season Wins',
+      type: 'number',
+      description: 'Total wins in the current season',
+    },
+    {
       name: 'moments',
       title: 'Moments',
       type: 'array',

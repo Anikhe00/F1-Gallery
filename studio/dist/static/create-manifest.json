@@ -1,6 +1,6 @@
 {
-  "createdAt": "2026-04-07T04:46:09.226Z",
-  "studioVersion": "5.19.0",
+  "createdAt": "2026-04-07T18:36:11.049Z",
+  "studioVersion": "5.20.0",
   "version": 3,
   "workspaces": [
     {
@@ -13,7 +13,7 @@
       },
       "name": "default",
       "projectId": "385v6f7f",
-      "schema": "7492713f.create-schema.json",
+      "schema": "3b469054.create-schema.json",
       "title": "F1 Gallery",
       "tools": "ef87c8fe.create-tools.json"
     }
