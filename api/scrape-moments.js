@@ -12,58 +12,55 @@ const sanity = createClient({
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
-// Convert a full name to Ergast driverId candidates
-// Ergast uses slugs like "max_verstappen", "hamilton", "leclerc"
+// Jolpica is the maintained replacement for the defunct Ergast API (same URL shape)
+const JOLPICA = 'https://api.jolpi.ca/ergast/f1'
+
 function nameToDriverIdCandidates(fullName) {
   const parts = fullName.toLowerCase().trim().split(/\s+/)
-  const last = parts[parts.length - 1]
   const first = parts[0]
+  const last = parts[parts.length - 1]
   return [
-    `${first}_${last}`, // e.g. max_verstappen
-    last, // e.g. hamilton
-    `${first}${last}`, // e.g. carlossainz (rare)
+    `${first}_${last}`, // max_verstappen, lando_norris
+    last, // hamilton, alonso
+    `${first}${last}`, // carlossainz (rare)
   ]
 }
 
-// Fetch driver stats from Ergast F1 API, trying multiple driverId candidates
 async function fetchDriverStats(fullName) {
   const candidates = nameToDriverIdCandidates(fullName)
 
   for (const driverId of candidates) {
     try {
-      const driverRes = await fetch(`https://ergast.com/api/f1/drivers/${driverId}.json`)
+      const driverRes = await fetch(`${JOLPICA}/drivers/${driverId}.json`)
       if (!driverRes.ok) continue
 
       const driverData = await driverRes.json()
       const driver = driverData.MRData?.DriverTable?.Drivers?.[0]
       if (!driver) continue
 
-      // Fetch all race results for this driver
-      const resultsRes = await fetch(
-        `https://ergast.com/api/f1/drivers/${driverId}/results.json?limit=1000`,
-      )
+      const resultsRes = await fetch(`${JOLPICA}/drivers/${driverId}/results.json?limit=1000`)
       if (!resultsRes.ok) continue
 
       const resultsData = await resultsRes.json()
       const races = resultsData.MRData?.RaceTable?.Races || []
 
       const wins = races.filter((r) => r.Results?.[0]?.position === '1').length
-
       const podiums = races.filter((r) => {
         const pos = parseInt(r.Results?.[0]?.position, 10)
         return !isNaN(pos) && pos >= 1 && pos <= 3
       }).length
 
       console.log(
-        `✅ Matched "${fullName}" → Ergast driverId: "${driverId}" (${races.length} races, ${wins} wins, ${podiums} podiums)`,
+        `✅ "${fullName}" → driverId: "${driverId}" | ` +
+          `${races.length} races, ${wins} wins, ${podiums} podiums`,
       )
 
       return {
-        driverId, // store so we can match season stats
+        driverId,
         nationality: driver.nationality,
         dateOfBirth: driver.dateOfBirth,
         grandPrixEntered: races.length,
-        careerWins: wins, // renamed to avoid confusion with season wins
+        careerWins: wins,
         podiums,
       }
     } catch (error) {
@@ -71,22 +68,21 @@ async function fetchDriverStats(fullName) {
     }
   }
 
-  console.warn(`⚠️ Could not find Ergast entry for "${fullName}"`)
+  console.warn(`⚠️ No Jolpica entry found for "${fullName}"`)
   return null
 }
 
-// Fetch current season standings
 async function fetchCurrentSeasonStats() {
   try {
-    const response = await fetch('https://ergast.com/api/f1/current/driverStandings.json')
+    const response = await fetch(`${JOLPICA}/current/driverStandings.json`)
     const data = await response.json()
     const standings = data.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings || []
 
     return standings.map((s) => ({
-      driverId: s.Driver.driverId, // e.g. "max_verstappen"
+      driverId: s.Driver.driverId,
       position: parseInt(s.position, 10),
       points: parseFloat(s.points),
-      seasonWins: parseInt(s.wins, 10), // renamed: these are season wins only
+      seasonWins: parseInt(s.wins, 10),
     }))
   } catch (error) {
     console.error('Error fetching season standings:', error)
@@ -94,10 +90,14 @@ async function fetchCurrentSeasonStats() {
   }
 }
 
-// Fetch image URL from Google Custom Search
 async function findImageUrl(query) {
   try {
-    const url = `https://www.googleapis.com/customsearch/v1?key=${process.env.GOOGLE_SEARCH_API_KEY}&cx=${process.env.GOOGLE_SEARCH_CX}&q=${encodeURIComponent(query)}&searchType=image&num=1&imgType=photo&safe=active`
+    const url =
+      `https://www.googleapis.com/customsearch/v1` +
+      `?key=${process.env.GOOGLE_SEARCH_API_KEY}` +
+      `&cx=${process.env.GOOGLE_SEARCH_CX}` +
+      `&q=${encodeURIComponent(query)}` +
+      `&searchType=image&num=1&imgType=photo&safe=active`
     const res = await fetch(url)
     const data = await res.json()
     return data.items?.[0]?.link ?? null
@@ -106,7 +106,6 @@ async function findImageUrl(query) {
   }
 }
 
-// Download image and upload to Sanity
 async function uploadImageToSanity(imageUrl, filename) {
   try {
     const res = await fetch(imageUrl)
@@ -137,53 +136,57 @@ export default async function handler(req, res) {
     console.log('🏁 Starting F1 automation...')
 
     // PART 1: UPDATE DRIVER STATS
-    console.log('\n📊 Updating driver stats from Ergast API...')
+    console.log('\n📊 Updating driver stats from Jolpica API...')
 
     const drivers = await sanity.fetch(`*[_type == "driver"] { _id, name, number, team }`)
+
+    console.log(`Found ${drivers.length} driver(s) in Sanity`)
+
     const currentSeasonStats = await fetchCurrentSeasonStats()
+    console.log(`Fetched ${currentSeasonStats.length} entries from current season standings`)
+
     const updatedDrivers = []
 
     for (const driver of drivers) {
       try {
+        console.log(`\nProcessing: ${driver.name}`)
         const stats = await fetchDriverStats(driver.name)
 
         if (!stats) {
-          console.log(`⚠️ Skipping ${driver.name} — no Ergast data found`)
+          console.log(`⚠️ Skipping ${driver.name} — no data found`)
           continue
         }
 
-        // Match season stats using the driverId we resolved above
         const seasonStats = currentSeasonStats.find((s) => s.driverId === stats.driverId)
 
         if (seasonStats) {
           console.log(
-            `📈 Season stats for ${driver.name}: ${seasonStats.seasonWins} wins, ${seasonStats.points} pts`,
+            `📈 Season: P${seasonStats.position}, ` +
+              `${seasonStats.points} pts, ${seasonStats.seasonWins} wins`,
           )
         } else {
-          console.warn(`⚠️ No current season entry for driverId "${stats.driverId}"`)
+          console.warn(`⚠️ No current season entry for "${stats.driverId}"`)
         }
 
-        await sanity
-          .patch(driver._id)
-          .set({
-            nationality: stats.nationality,
-            dateOfBirth: stats.dateOfBirth,
-            grandPrixEntered: stats.grandPrixEntered,
-            wins: stats.careerWins, // career wins from full results
-            podiums: stats.podiums,
-            // Season-specific fields (only set if we have season data)
-            ...(seasonStats && {
-              currentSeasonPoints: seasonStats.points,
-              currentSeasonWins: seasonStats.seasonWins,
-              currentSeasonPosition: seasonStats.position,
-            }),
-          })
-          .commit()
+        const patch = {
+          nationality: stats.nationality,
+          dateOfBirth: stats.dateOfBirth,
+          grandPrixEntered: stats.grandPrixEntered,
+          wins: stats.careerWins,
+          podiums: stats.podiums,
+          ...(seasonStats && {
+            currentSeasonPoints: seasonStats.points,
+            currentSeasonWins: seasonStats.seasonWins,
+            currentSeasonPosition: seasonStats.position,
+          }),
+        }
 
-        console.log(`✅ Updated ${driver.name}`)
+        console.log(`Patching with:`, JSON.stringify(patch))
+
+        const result = await sanity.patch(driver._id).set(patch).commit()
+        console.log(`✅ Committed — rev: ${result._rev}`)
         updatedDrivers.push(driver.name)
 
-        // Rate limit
         await new Promise((resolve) => setTimeout(resolve, 600))
       } catch (error) {
         console.error(`❌ Error updating ${driver.name}:`, error)
@@ -207,7 +210,9 @@ export default async function handler(req, res) {
 
     const prompt = `You are an F1 expert. Generate a JSON array of 8-10 notable or iconic F1 moments
 for these drivers: ${drivers.map((d) => d.name).join(', ')}.
-Focus on memorable race wins and podium finishes, dramatic overtakes, race incidents, pole positions, radio messages that went viral, post-race celebrations, controversies or penalties, driver reactions and emotions, social media moments, and paddock drama.
+Focus on memorable race wins and podium finishes, dramatic overtakes, race incidents, pole positions,
+radio messages that went viral, post-race celebrations, controversies or penalties,
+driver reactions and emotions, social media moments, and paddock drama.
 Context: approximate date ${raceDate}.
 
 For each moment, identify:
@@ -222,18 +227,18 @@ IMPORTANT: Every object MUST include the imageQuery field. Do not omit it.
 Return ONLY a valid JSON array, no markdown, no backticks, no explanation. Schema:
 [{
   "driverName": "string (must match one of the drivers listed above)",
-  "title": "string (short, descriptive)",
-  "description": "string (2-3 sentences about the moment)",
-  "radio": "string or null (famous radio quote if applicable)",
-  "type": "string (one of: image, video)",
-  "imageQuery": "string (REQUIRED - specific Google image search query, e.g. 'Max Verstappen Abu Dhabi 2021 celebration podium')"
+  "title": "string",
+  "description": "string",
+  "radio": "string or null",
+  "type": "string (image or video)",
+  "imageQuery": "string (e.g. 'Lando Norris Monaco 2024 win celebration')"
 }]`
 
-    const result = await model.generateContent({
+    const geminiResult = await model.generateContent({
       contents: [{role: 'user', parts: [{text: prompt}]}],
     })
 
-    const parts = result.response.candidates?.[0]?.content?.parts ?? []
+    const parts = geminiResult.response.candidates?.[0]?.content?.parts ?? []
     const rawText = parts
       .filter((p) => p.text)
       .map((p) => p.text)
@@ -243,7 +248,6 @@ Return ONLY a valid JSON array, no markdown, no backticks, no explanation. Schem
 
     const moments = JSON.parse(rawText)
     console.log(`✨ Gemini returned ${moments.length} moments`)
-    console.log(`🔎 Sample imageQuery: ${moments[0]?.imageQuery}`)
 
     const createdMoments = []
 
@@ -262,14 +266,15 @@ Return ONLY a valid JSON array, no markdown, no backticks, no explanation. Schem
       const existing = await sanity.fetch(`*[_type == "moment" && title == $title][0]`, {
         title: moment.title,
       })
-      if (existing) continue
+      if (existing) {
+        console.log(`⏭️ Already exists: ${moment.title}`)
+        continue
+      }
 
       let imageAssetId = null
       if (moment.imageQuery) {
-        console.log(`🔍 Searching image for: ${moment.imageQuery}`)
         const imageUrl = await findImageUrl(moment.imageQuery)
         if (imageUrl) {
-          console.log(`📸 Uploading image: ${imageUrl}`)
           const slug = moment.title.toLowerCase().replace(/\s+/g, '-').slice(0, 40)
           imageAssetId = await uploadImageToSanity(imageUrl, `${slug}.jpg`)
         }
@@ -309,7 +314,7 @@ Return ONLY a valid JSON array, no markdown, no backticks, no explanation. Schem
       moments: createdMoments,
     })
   } catch (error) {
-    console.error('❌ Error:', error)
+    console.error('❌ Fatal error:', error)
     return res.status(500).json({error: error.message})
   }
 }
