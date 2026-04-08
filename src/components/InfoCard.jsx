@@ -23,6 +23,15 @@ const InfoCard = ({driver, onClick}) => {
       <div className="flex flex-col items-start gap-4 self-stretch">
         <Stat statName="Car number" statCount={driver.number} />
         <Stat statName="Team" statCount={driver.team} />
+        <Stat statName="Nationality" statCount={driver.nationality} />
+        {/* <Stat statName="Current Season Points" statCount={driver.currentSeasonPoints} />
+        <Stat statName="Current Season Position" statCount={driver.currentSeasonPosition} />
+        <Stat statName="Current Season Wins" statCount={driver.currentSeasonWins} /> */}
+        <Stat statName="Grand Prix Entered" statCount={driver.grandPrixEntered} />
+        <Stat statName="Total Race Wins" statCount={driver.wins} />
+        <Stat statName="Championships" statCount={driver.championships} />
+        <Stat statName="Podiums" statCount={driver.podiums} />
+        <Stat statName="Pole Positions" statCount={driver.polePositions} />
       </div>
     </div>
   )
