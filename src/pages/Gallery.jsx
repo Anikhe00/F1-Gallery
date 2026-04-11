@@ -19,10 +19,18 @@ const Gallery = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-2xl font-bold text-red-600 mb-2">Error loading drivers</p>
-          <p className="text-gray-600">{error.message}</p>
+      <div className="bg-rose-50 min-h-screen w-full flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-md mx-auto text-center bg-white/50 p-8 rounded-2xl shadow-sm border border-red-100">
+          <p className="text-2xl font-bold text-red-600 mb-4 font-indie">Error loading drivers</p>
+          <p className="text-gray-600 font-quicksand wrap-break-word whitespace-pre-wrap leading-relaxed">
+            {error.message}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-6 px-6 py-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors font-bold shadow-md"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     )
@@ -34,7 +42,7 @@ const Gallery = () => {
 
       <Main>
         {drivers && drivers.length > 0 ? (
-          <div className="w-full max-w-7xl gap-6 lg:gap-7 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 h-full">
+          <div className="w-full max-w-7xl gap-5 md:gap-6 lg:gap-7 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 h-full">
             {drivers.map((driver, index) => (
               <DriversCard
                 key={driver.id}
