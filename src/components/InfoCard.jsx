@@ -3,14 +3,14 @@ import {ArrowLeft} from 'lucide-react'
 
 const InfoCard = ({driver, onClick}) => {
   return (
-    <div className="flex flex-col gap-8 items-start shrink-0 self-stretch lg:w-80 md:w-55">
+    <div className="flex flex-col gap-8 items-start shrink-0 self-stretch lg:w-60 md:w-55">
       {/* Back Button */}
       <button
         onClick={onClick}
-        className="hidden md:flex lg:flex items-center gap-2 text-gray-600 hover:text-gray-900"
+        className="hidden md:flex lg:flex items-center gap-2 text-gray-600 hover:text-gray-900 cursor-pointer group"
       >
-        <ArrowLeft className="w-5 h-5" />
-        <span>Back to home</span>
+        <ArrowLeft className="w-5 h-5 group-hover:text-gray-900" />
+        <span className="group-hover:text-gray-900">Back to home</span>
       </button>
 
       {/* Drivers Name */}
